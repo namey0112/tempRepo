@@ -1,0 +1,214 @@
+# CI/CD Workflow for Music Player AUTOSAR Project
+# This workflow ensures code quality, runs tests, and validates compliance
+
+name: AUTOSAR Music Player CI
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+env:
+  BUILD_TYPE: Release
+  CXX_STANDARD: 17
+
+jobs:
+  # ==========================================================================
+  # Static Analysis Job
+  # ==========================================================================
+  static-analysis:
+    name: Static Analysis (clang-tidy)
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Install Dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y clang-tidy-14
+    
+    - name: Configure CMake
+      run: cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+    
+    - name: Run clang-tidy
+      run: |
+        clang-tidy-14 --config-file=.clang-tidy \
+          -p ${{github.workspace}}/build \
+          src/**/*.cpp \
+          --warnings-as-errors='*'
+    
+    - name: Upload Analysis Results
+      if: failure()
+      uses: actions/upload-artifact@v3
+      with:
+        name: static-analysis-results
+        path: build/static_analysis_reports/
+
+  # ==========================================================================
+  # Format Check Job
+  # ==========================================================================
+  format-check:
+    name: Code Format Check (clang-format)
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Install clang-format
+      run: sudo apt-get update && sudo apt-get install -y clang-format-14
+    
+    - name: Check Formatting
+      run: |
+        find src test -name '*.cpp' -o -name '*.hpp' | \
+        xargs clang-format-14 --dry-run --Werror
+
+  # ==========================================================================
+  # Build and Test Job (Linux GCC)
+  # ==========================================================================
+  build-test-gcc:
+    name: Build & Test (GCC)
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Install Dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y build-essential cmake ninja-build
+    
+    - name: Configure CMake
+      run: |
+        cmake -B ${{github.workspace}}/build \
+          -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} \
+          -DCMAKE_CXX_COMPILER=g++ \
+          -G Ninja
+    
+    - name: Build
+      run: cmake --build ${{github.workspace}}/build --config ${{env.BUILD_TYPE}}
+    
+    - name: Run Unit Tests
+      working-directory: ${{github.workspace}}/build
+      run: ctest -C ${{env.BUILD_TYPE}} --output-on-failure
+    
+    - name: Upload Test Results
+      if: failure()
+      uses: actions/upload-artifact@v3
+      with:
+        name: test-results-gcc
+        path: build/Testing/
+
+  # ==========================================================================
+  # Build and Test Job (Linux Clang)
+  # ==========================================================================
+  build-test-clang:
+    name: Build & Test (Clang)
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Install Dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y clang-14 cmake ninja-build
+    
+    - name: Configure CMake
+      run: |
+        cmake -B ${{github.workspace}}/build \
+          -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} \
+          -DCMAKE_CXX_COMPILER=clang++-14 \
+          -G Ninja
+    
+    - name: Build
+      run: cmake --build ${{github.workspace}}/build --config ${{env.BUILD_TYPE}}
+    
+    - name: Run Unit Tests
+      working-directory: ${{github.workspace}}/build
+      run: ctest -C ${{env.BUILD_TYPE}} --output-on-failure
+
+  # ==========================================================================
+  # Code Coverage Job
+  # ==========================================================================
+  coverage:
+    name: Code Coverage Analysis
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Install Dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y build-essential cmake lcov
+    
+    - name: Configure CMake with Coverage
+      run: |
+        cmake -B ${{github.workspace}}/build \
+          -DCMAKE_BUILD_TYPE=Debug \
+          -DCMAKE_CXX_FLAGS="--coverage" \
+          -DCMAKE_EXE_LINKER_FLAGS="--coverage"
+    
+    - name: Build
+      run: cmake --build ${{github.workspace}}/build
+    
+    - name: Run Tests
+      working-directory: ${{github.workspace}}/build
+      run: ctest --output-on-failure
+    
+    - name: Generate Coverage Report
+      working-directory: ${{github.workspace}}/build
+      run: |
+        lcov --capture --directory . --output-file coverage.info
+        lcov --remove coverage.info '/usr/*' --output-file coverage.info
+        lcov --remove coverage.info '*/test/*' --output-file coverage.info
+        lcov --remove coverage.info '*/googletest/*' --output-file coverage.info
+        lcov --list coverage.info
+    
+    - name: Check Coverage Threshold
+      working-directory: ${{github.workspace}}/build
+      run: |
+        COVERAGE=$(lcov --summary coverage.info | grep lines | awk '{print $2}' | sed 's/%//')
+        echo "Coverage: $COVERAGE%"
+        if (( $(echo "$COVERAGE < 85" | bc -l) )); then
+          echo "ERROR: Coverage $COVERAGE% is below threshold 85%"
+          exit 1
+        fi
+    
+    - name: Upload Coverage to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        files: ./build/coverage.info
+        fail_ci_if_error: false
+
+  # ==========================================================================
+  # AUTOSAR Compliance Check
+  # ==========================================================================
+  autosar-compliance:
+    name: AUTOSAR C++14 Compliance
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Validate Configuration Files
+      run: |
+        # Check that required configuration files exist
+        test -f .clang-tidy || exit 1
+        test -f .clang-format || exit 1
+        test -f config/static_analysis.config || exit 1
+        echo "✓ All configuration files present"
+    
+    - name: Verify Namespace Structure
+      run: |
+        # Ensure all code uses proper AUTOSAR namespace
+        ! grep -r "using namespace std" src/ && echo "✓ No 'using namespace std' found" || exit 1
+    
+    - name: Check for Exceptions (ISO 26262)
+      run: |
+        # Ensure no exception keywords in production code
+        ! grep -r "throw\|catch" src/ --include="*.cpp" --include="*.hpp" && \
+          echo "✓ No exceptions in production code" || \
+          echo "⚠ Warning: Exceptions found in production code"

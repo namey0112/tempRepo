@@ -1,0 +1,96 @@
+# Doxygen Configuration for AUTOSAR Music Player
+# Generates comprehensive API documentation
+
+PROJECT_NAME           = "AUTOSAR Music Player ECU"
+PROJECT_NUMBER         = "1.0.0"
+PROJECT_BRIEF          = "Automotive Music Player Application following AUTOSAR architecture and ISO 26262 safety standards"
+
+OUTPUT_DIRECTORY       = doc/generated
+CREATE_SUBDIRS         = YES
+
+# Input files
+INPUT                  = src/ \
+                         generated/rte/ \
+                         README.md
+                         
+FILE_PATTERNS          = *.hpp \
+                         *.cpp \
+                         *.h \
+                         *.md
+
+RECURSIVE              = YES
+EXCLUDE                = build/ \
+                         test/framework/
+                         
+EXCLUDE_PATTERNS       = */build/* \
+                         */test/*
+
+# Extract everything for comprehensive documentation
+EXTRACT_ALL            = YES
+EXTRACT_PRIVATE        = YES
+EXTRACT_STATIC         = YES
+EXTRACT_LOCAL_CLASSES  = YES
+
+# Class documentation
+SHOW_INCLUDE_FILES     = YES
+INLINE_SOURCES         = NO
+STRIP_CODE_COMMENTS    = NO
+
+# Graph generation (requires Graphviz)
+HAVE_DOT               = YES
+DOT_IMAGE_FORMAT       = svg
+INTERACTIVE_SVG        = YES
+CLASS_DIAGRAMS         = YES
+COLLABORATION_GRAPH    = YES
+INCLUDE_GRAPH          = YES
+INCLUDED_BY_GRAPH      = YES
+CALL_GRAPH             = YES
+CALLER_GRAPH           = YES
+TEMPLATE_RELATIONS     = YES
+
+# Output formats
+GENERATE_HTML          = YES
+HTML_OUTPUT            = html
+HTML_COLORSTYLE_HUE    = 220
+HTML_COLORSTYLE_SAT    = 100
+HTML_COLORSTYLE_GAMMA  = 80
+HTML_TIMESTAMP         = YES
+
+GENERATE_LATEX         = NO
+GENERATE_XML           = YES
+GENERATE_DOCBOOK       = NO
+
+# Preprocessing
+ENABLE_PREPROCESSING   = YES
+MACRO_EXPANSION        = YES
+EXPAND_ONLY_PREDEF     = NO
+PREDEFINED             = __cplusplus=201402L
+
+# Warnings
+QUIET                  = NO
+WARNINGS               = YES
+WARN_IF_UNDOCUMENTED   = YES
+WARN_IF_DOC_ERROR      = YES
+WARN_NO_PARAMDOC       = YES
+
+# Layout
+LAYOUT_FILE            = 
+BRIEF_MEMBER_DESC      = YES
+REPEAT_BRIEF           = YES
+ALWAYS_DETAILED_SEC    = YES
+INLINE_INHERITED_MEMB  = YES
+FULL_PATH_NAMES        = NO
+
+# Alphabetical index
+ALPHABETICAL_INDEX     = YES
+COLS_IN_ALPHA_INDEX    = 5
+
+# Source browsing
+SOURCE_BROWSER         = YES
+INLINE_SOURCES         = NO
+STRIP_CODE_COMMENTS    = NO
+REFERENCED_BY_RELATION = YES
+REFERENCES_RELATION    = YES
+
+# Special pages
+USE_MDFILE_AS_MAINPAGE = README.md
